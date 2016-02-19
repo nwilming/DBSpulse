@@ -1,8 +1,10 @@
 #!/usr/bin/env python
-
+'''
+Simple program that reads from pipe and dumps messages to console.
+Can also use 'cat' instead
+'''
 
 import numpy as np
-
 import os, sys
 from psychopy import core
 import time
