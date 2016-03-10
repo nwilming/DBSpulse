@@ -15,13 +15,9 @@ from collections import deque
 
 
 # Open pipe for reading
-pipe = '/tmp/DBS.pipe'
-try:
-    os.remove(pipe)
-except OSError:
-    pass
-os.mkfifo(pipe)
-pipe = open(pipe, 'r', 1)
+import zmq
+#  Socket to talk to server
+
 
 # Set up things for the bokeh plot
 start = time.time()
@@ -38,42 +34,55 @@ maxlen = 1000
 dx, dy, dp = deque(maxlen=maxlen), deque(maxlen=maxlen), deque(maxlen=maxlen)
 dt = deque(maxlen=maxlen)
 
-def get_vals():
-    '''
-    Read values from pipe.
-    '''
-    line = pipe.readline()
-    if line.startswith('t'):
-       return 'trigger'
-    elif line is not '':
-        try:
-            x,y,p = line.split(',')
-            return float(x), float(y), float(p)
-        except ValueError:
-            pass
-    return None
+class GetET(object):
+    def __init__(self):
+        context = zmq.Context()
+        self.et = context.socket(zmq.SUB)
+        print("Collecting updates ETBroadcast")
+        self.et.connect("tcp://localhost:5558")
+        self.et.setsockopt_string(zmq.SUBSCRIBE, u'ET')
+
+    def __call__(self):
+        '''
+        Read values from pipe.
+        '''
+        line = self.et.recv_string()
+        if line.startswith('t'):
+           return 'trigger'
+        elif line.startswith('ET:'):
+            line = line.replace('ET:','')
+            try:
+                x,y,p = line.split(',')
+                return float(x), float(y), float(p)
+            except ValueError:
+                pass
+        return None
 
 
-def callback():
-    '''
-    Updates figure
-    '''
-    t = time.time() - start
-    v = get_vals()
-    if v == 'trigger':
-        # Draw line for trigger
-        pfig.line(x=[t, t], y=[0, 150], color="#F0027F", line_width=2)
-    elif v is not None:
-        x,y,p = v
-        dx.append(x)
-        dy.append(y)
-        dp.append(p)
-        dt.append(t)
-        for ds, d in zip(dss, [dx, dy, dp]):
-            ds.data['y'] = list(d)
-            ds.data['x'] = list(dt)
-            ds.trigger('data', ds.data, ds.data)
-        pfig.x_range.start = t-10
-        pfig.x_range.end =  t+10
+def get_callback(et):
+    def callback():
+        '''
+        Updates figure
+        '''
+        t = time.time() - start
+        v = et()
+        print v
+        if v == 'trigger':
+            # Draw line for trigger
+            pfig.line(x=[t, t], y=[0, 150], color="#F0027F", line_width=2)
+        elif v is not None:
+            x,y,p = v
+            dx.append(x)
+            dy.append(y)
+            dp.append(p)
+            dt.append(t)
+            for ds, d in zip(dss, [dx, dy, dp]):
+                ds.data['y'] = list(d)
+                ds.data['x'] = list(dt)
+                ds.trigger('data', ds.data, ds.data)
+            pfig.x_range.start = t-10
+            pfig.x_range.end =  t+10
+    return callback
 
-curdoc().add_periodic_callback(callback, 1/30.)
+
+curdoc().add_periodic_callback(get_callback(GetET()), 1/200.)

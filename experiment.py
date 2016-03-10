@@ -28,61 +28,11 @@ import time
 import random
 import os, sys
 from multiprocessing import Process, Queue
+import zmq
 
 # Set inter pulse interval
 IPI = 10.
 
-track = tracker.Tracker(None, 'test.edf')
-
-
-# Set up logging of ET data and trigger detection.
-# Starts a new process that does this in the background, communicates pulse
-# times through a queue.
-
-def logetandtrigger(pipe, tracker, trigger):
-    '''
-    Sets up a function that continuously checks for triggers and ET data and
-    dumps it into a pipe.
-
-    Input:
-        pipe : filename of the pipe
-        tracker : function that returns samples from eye-tracker (x, y, pupil)
-        trigger : function that returns a positive number when a trigger occured
-    '''
-    pipe = open(pipe, 'w', 1)
-    def run(q, qin, HZ=30):
-        '''
-        Input:
-            q : Message queue that allows us to send messages to the experiment
-                thread. Used to communicate the time when a trigger occured.
-            qin : Queue with which messages can be received from the experiment
-                thread. Used to stop data collection
-        '''
-        x,y,p = tracker()
-        while True:
-            x,y,p = tracker()
-            pipe.write('%f, %f, %f\n'%(x,y,p))
-            if trigger() > 0:
-                # Communicate trigger to pipe and experiment
-                pipe.write('trigger\n')
-                q.put(time.time())
-            core.wait(1./HZ, 1./(HZ+2.))
-            if not qin.empty():
-                return
-    return run, pipe
-
-class TrigChecker(object):
-    '''
-    Dummy class that 'detects' a trigger every IPI seconds.
-    '''
-    def __init__(self, IPI):
-        self.start = time.time()
-
-    def __call__(self):
-        if time.time() > (self.start + IPI):
-            self.start = time.time()
-            return 1
-        return 0
 
 
 # Queues to allow communication between experiment and data collection
