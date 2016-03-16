@@ -18,9 +18,10 @@ TODO:
     - Timing of the trials not yet correct.
     - Trial onsets should also be pushed into the pipe.
 '''
+from psychopy import visual,  core, logging, event
+
 import sys
 sys.path.append('pytrack')  # Dirty dirty hack
-from psychopy import visual,  core, logging, event
 from faketrack import tracker
 import trials
 import numpy as np
@@ -34,17 +35,17 @@ import zmq
 IPI = 10.
 
 
-
+'''
 # Queues to allow communication between experiment and data collection
 qin, qout = Queue(), Queue()
 # Set up and start data collection
 logging, pipe = logetandtrigger('/tmp/DBS.pipe', track.getFloatData().getAverageGaze, TrigChecker(IPI))
 p = Process(target=logging, args=(qin, qout))
 p.start()
-
+'''
 # Open a window for experiment
-win = visual.Window((500,500),
-					monitor='mac_default',
+mywin = visual.Window((800,600),
+                    monitor = 'Bharath',
                     fullscr = False,
                     allowGUI = False,
                     winType = 'pyglet',
@@ -52,14 +53,14 @@ win = visual.Window((500,500),
                     units='deg')
 
 # Some stimuli
-patch = visual.Circle(win, lineColor=None, fillColor=1, fillColorSpace='rgb', pos=(0, 1.5), radius=1.5, edges=64, interpolate=True)
-fixation = visual.GratingStim(win, color=[1,0,0], colorSpace='rgb', tex=None, mask='circle',size=0.2)
+patch = visual.Circle(win = mywin, lineColor=None, fillColor=1, fillColorSpace='rgb', pos=(0, 0), radius=1.5, edges=64, interpolate=True)
+fixation = visual.GratingStim(win = mywin, color=[1,0,0], colorSpace='rgb', tex=None, mask='circle',size=0.2)
 
 # Need to wait for first trigger to be able to sync trials with triggers.
-print 'Waiting for first trigger to sync.'
-while not qin.empty():
-    qin.get(block=False)
-pulse_time = qin.get(block=True)
+#print 'Waiting for first trigger to sync.'
+#while not qin.empty():
+#    qin.get(block=False)
+pulse_time = 0 # qin.get(block=True)
 
 
 buff = IPI - 8 # Total amount of buffer available, this needs to accomodate relax and variable ITI
@@ -67,10 +68,10 @@ jitter = random.uniform(0, buff-1)
 relaxlength = IPI/2. + buff - jitter - (time.time()-pulse_time)
 fixlength = 8 + jitter
 for i in range(2):
-    t = trials.FixateRelax(win, tracker, fixation, fixlength, relaxlength)
+    t = trials.FixateRelax(mywin, tracker, fixation, fixlength, relaxlength)
     t.run()
     # Determine next trial length
-    pulse_time = qin.get(block=False)
+    pulse_time = 10#  qin.get(block=False)
     print 'Pulse Time', pulse_time, time.time()-pulse_time
     # This is the end of the fixation period -> Calculate how much time left till next pulse
     time_left = IPI - (time.time()-pulse_time)

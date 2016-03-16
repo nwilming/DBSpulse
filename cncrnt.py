@@ -81,18 +81,18 @@ class TrigChecker(Watchdog):
 
 if __name__ == '__main__':
     try:
-        et = ETBroadcast(5558, 100)
-        p = Process(target=et.run)
-        p.start()
+        #et = ETBroadcast(5558, 100)
+        #p = Process(target=et.run)
+        #p.start()
         trig = TrigChecker(5559, 500, 10)
         p2 = Process(target=trig.run)
         p2.start()
         p2.join()
-        p.join()
+        #p.join()
     except Exception:
         import traceback
         print traceback.format_exc()
         print ''
     finally:
-        p.terminate()
+        #p.terminate()
         p2.terminate()
