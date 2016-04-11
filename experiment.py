@@ -3,20 +3,10 @@
 '''
 Run a DBS single pulse fixation/relax block.
 
-This scripts runs a set of trials and reads ET data and dumps it into a pipe.
-The ET data can then be read from the pipe by some other program. Importantly
-the experiment continues only when the pipe is openend by some other program.
-
-Important:
- -> Start the other end of the pipe before the experiment! <-
-
-Pipe could be made optional in the future.
-
-ET data is read in a different process.
-
-TODO:
-    - Timing of the trials not yet correct.
-    - Trial onsets should also be pushed into the pipe.
+This scripts runs a set of trials which need to be synchronized with an external
+EMG based trigger. This is detected in a different program ('cncrnt.py') which
+streams data via a zmq socket. The experiment subscribes to these messages and
+starts a trial after a trigger.
 '''
 from psychopy import visual,  core, logging, event
 
@@ -25,27 +15,22 @@ sys.path.append('pytrack')  # Dirty dirty hack
 from faketrack import tracker
 import trials
 import numpy as np
-import time
-import random
-import os, sys
+import os, sys, random, time
 from multiprocessing import Process, Queue
 import zmq
+import randomization
 
 # Set inter pulse interval
-IPI = 10.
+IPI = 15.
+context = zmq.Context()
+et = context.socket(zmq.SUB)
+et.connect("tcp://localhost:5559")
+et.setsockopt_string(zmq.SUBSCRIBE, u'Trigger')
 
 
-'''
-# Queues to allow communication between experiment and data collection
-qin, qout = Queue(), Queue()
-# Set up and start data collection
-logging, pipe = logetandtrigger('/tmp/DBS.pipe', track.getFloatData().getAverageGaze, TrigChecker(IPI))
-p = Process(target=logging, args=(qin, qout))
-p.start()
-'''
 # Open a window for experiment
-mywin = visual.Window((800,600),
-                    monitor = 'Bharath',
+mywin = visual.Window((400,400),
+                    monitor = 'mac_default',
                     fullscr = False,
                     allowGUI = False,
                     winType = 'pyglet',
@@ -56,38 +41,38 @@ mywin = visual.Window((800,600),
 patch = visual.Circle(win = mywin, lineColor=None, fillColor=1, fillColorSpace='rgb', pos=(0, 0), radius=1.5, edges=64, interpolate=True)
 fixation = visual.GratingStim(win = mywin, color=[1,0,0], colorSpace='rgb', tex=None, mask='circle',size=0.2)
 
-# Need to wait for first trigger to be able to sync trials with triggers.
-#print 'Waiting for first trigger to sync.'
-#while not qin.empty():
-#    qin.get(block=False)
-pulse_time = 0 # qin.get(block=True)
+def get_trigger():
+    trigger = et.recv_string()
+    return float(trigger.split(' ')[1])
 
+# Set up timing
+fix_times, relax_times, pulse_times, diffs = randomization.get_sequence(15, IPI=IPI, pulse_guard=3.5, jitter=1/4.)
+fix_times = fix_times[1:]
+relax_times = relax_times[:-1]
+pulse_times = pulse_times[1:]
 
-buff = IPI - 8 # Total amount of buffer available, this needs to accomodate relax and variable ITI
-jitter = random.uniform(0, buff-1)
-relaxlength = IPI/2. + buff - jitter - (time.time()-pulse_time)
-fixlength = 8 + jitter
-for i in range(2):
-    t = trials.FixateRelax(mywin, tracker, fixation, fixlength, relaxlength)
+start = get_trigger()
+start = get_trigger()
+sync_err = 0
+
+for n, ((fixstart, fixend), (relaxstart, relaxend), pt) in enumerate(zip(fix_times, relax_times, pulse_times)):
+    # pt is expected next trigger time.
+    if n == 0:
+        t = trials.FixateRelax(mywin, tracker, fixation, fixend-fixstart, relaxend)
+    else:
+        print '--> Fixtime: %3.2f'%(fixend-fixstart)
+        print '--> Relaxtime: %3.2f'%(relaxend-relaxstart)
+        t = trials.FixateRelax(mywin, tracker, fixation, fixend-fixstart, relaxend-relaxstart-sync_err)
+
     t.run()
-    # Determine next trial length
-    pulse_time = 10#  qin.get(block=False)
-    print 'Pulse Time', pulse_time, time.time()-pulse_time
-    # This is the end of the fixation period -> Calculate how much time left till next pulse
-    time_left = IPI - (time.time()-pulse_time)
-    buff = time_left - 4
-    print time_left, buff
-    jitter = random.uniform(0, buff-1)
-    relaxlength = buff - jitter
-    fixlength = 8 + jitter + random.uniform(0, buff-1)
 
-#except Exception as e:
-#    print e
-#finally:
-qout.put('end')
-print 'Terminated'
-p.join()
-p.terminate()
-pipe.write('END')
-pipe.close()
-win.close()
+    # Measure when the trigger actually occured
+    trigger = get_trigger()
+    sync_err = (trigger-start)-pt # + if trigger was later than expected, - if it was too early
+    print 'Trigger: %3.2f'%(trigger-start), 'Expected: %3.2f'%pt
+    print 'Syncerr:', sync_err
+    if abs(sync_err) > 0.25:
+        raise RuntimeError('Sync err is larger than 250ms: Improve trigger detection')
+
+
+mywin.close()

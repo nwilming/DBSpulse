@@ -1,14 +1,10 @@
 """
-Simple Python RDA client for the RDA tcpip interface of the BrainVision Recorder
-It reads all the information from the recorded EEG,
-prints EEG and marker information to the console and calculates and
-prints the average power every second
+Script thar receives data from EEG and looks for triggers in an EMG channel.
 
+Communication with EEG is based on an example script from manufacturer.
 
-Brain Products GmbH
-Gilching/Freiburg, Germany
-www.brainproducts.com
-
+Also contains a set of classes that fake an EEG on the other end to allow
+debugging.
 """
 
 # needs socket and struct library
@@ -17,8 +13,13 @@ from struct import *
 import numpy as np
 import time
 from collections import deque
-# Marker class for storing marker information
+
+from sys import getsizeof as sizeof
+
 class Marker:
+    '''
+    Marker class - helper class for comm. with EEG.
+    '''
     def __init__(self):
         self.position = 0
         self.points = 0
@@ -26,8 +27,13 @@ class Marker:
         self.type = ""
         self.description = ""
 
-# Helper function for receiving whole message
 def RecvData(socket, requestedSize):
+    '''
+    Receives a whole message from EEG.
+    Input:
+        socket - socket to use for comm. with EEG
+        requestedSize - how many bytes to read
+    '''
     returnStream = ''
     while len(returnStream) < requestedSize:
         databytes = socket.recv(requestedSize - len(returnStream))
@@ -37,10 +43,72 @@ def RecvData(socket, requestedSize):
 
     return returnStream
 
+# Helper function for faking whole messages
+class RecvFake(object):
+    '''
+    Helper class for faking a EEG message. Limited to one channel and no markers.
+    Needs to be class bcs. the EEG stream interleaves header and message packets.
 
-# Helper function for splitting a raw array of
-# zero terminated strings (C) into an array of python strings
+    Will generate a spike in a specified interval.
+    '''
+
+    def __init__(self, Hz):
+        '''
+        Hz: Spike frequency
+        '''
+        self.startp = time.time()
+        self.id = False
+        self.msg = ''
+        self.start = True
+        self.Hz = float(Hz)
+
+    def trigger(self):
+        '''
+        Return value of EMG channel
+        '''
+        interval = 1./self.Hz
+        tp = time.time()
+        if (tp-self.startp)>interval:
+            self.startp = tp
+            return 100.
+        else:
+            return np.random.randn()
+
+    def __call__(self, socket, requestedSize):
+        '''
+        Return next message
+        '''
+        id1 = id2 = id3 = id4 = 0
+        if self.start:
+            # Send meta info for single channel messages
+            self.msg = pack('<Ld', 1, 1000)
+            self.msg += pack('<d', 100)
+            self.msg += 'test\x00'
+            self.id = False
+            self.start = False
+            properties = pack('<llllLL', id1, id2, id3, id4, sizeof(self.msg), 1)
+            return properties
+
+        if self.id:
+            # This returns the header for a message and constructs the message
+            # for this header
+            payload = self.trigger()
+            self.msg = pack('<LLL', 1, 1, 0)# Construct a valid message
+            self.msg += pack('<f', payload)
+            self.id = False
+            hdr = pack('<llllLL', id1, id2, id3, id4, sizeof(self.msg), 4)
+            return hdr
+        else:
+            # Transmit the message
+            self.id = True
+            return self.msg
+
+
 def SplitString(raw):
+    '''
+    Helper function for splitting a raw array of
+    zero terminated strings (C) into an array of python strings
+    '''
     stringlist = []
     s = ""
     for i in range(len(raw)):
@@ -53,10 +121,11 @@ def SplitString(raw):
     return stringlist
 
 
-# Helper function for extracting eeg properties from a raw data array
-# read from tcpip socket
 def GetProperties(rawdata):
-
+    '''
+    Helper function for extracting eeg properties from a raw data array
+    read from tcpip socket
+    '''
     # Extract numerical data
     (channelCount, samplingInterval) = unpack('<Ld', rawdata[:12])
 
@@ -72,10 +141,12 @@ def GetProperties(rawdata):
 
     return (channelCount, samplingInterval, resolutions, channelNames)
 
-# Helper function for extracting eeg and marker data from a raw data array
-# read from tcpip socket
-def GetData(rawdata, channelCount):
 
+def GetData(rawdata, channelCount):
+    '''
+    Helper function for extracting eeg and marker data from a raw data array
+    read from tcpip socket
+    '''
     # Extract numerical data
     (block, points, markerCount) = unpack('<LLL', rawdata[:12])
 
@@ -104,96 +175,79 @@ def GetData(rawdata, channelCount):
     return (block, points, markerCount, data, markers)
 
 
-##############################################################################################
-#
-# Main RDA routine
-#
-##############################################################################################
+def detect_spike(data, stds_away=5):
+    '''
+    Primitive spike detection by variable threshold crossing.
+    '''
+    data = list(data)
+    mean = np.mean(data[:-1])
+    std = np.std(data[:-1])
+    if data[-1] > (mean + stds_away*std):
+        return True
+    return False
 
-# Create a tcpip socket
-con = socket(AF_INET, SOCK_STREAM)
-# Connect to recorder host via 32Bit RDA-port
-# adapt to your host, if recorder is not running on local machine
-# change port to 51234 to connect to 16Bit RDA-port
-con.connect(("172.18.101.205", 51244))
 
-# Flag for main loop
-finish = False
+class EEGTrigger(object):
+    '''
+    Class that reads values from EEG system and runs a simple trigger detection
+    algorithm. Should be used with a context manager - otherwise socket needs to
+    be closed manually.
+    '''
+    def __init__(self, ip='172.18.101.205', port=51244, fake=True):
+        self.ip = ip
+        self.port = port
+        self.fake = fake
+        self.datadeck = deque(maxlen = 100)
 
-# data buffer for calculation, empty in beginning
-data1s = []
+    def __enter__(self):
+        if not self.fake:
+            self.con = socket(AF_INET, SOCK_STREAM)
+            self.con.connect((self.ip, self.port))
+            self.receivefunc = RecvData
+        else:
+            # self.fake encodes IPI
+            self.receivefunc = RecvFake(1./self.fake)
+            self.con = None
 
-# block counter to check overflows of tcpip buffer
-lastBlock = -1
+        return self
 
-#### Main Loop ####
-while not finish:
+    def __exit__(self, exc_type, exc_value, traceback):
+        if self.con is not None:
+            self.con.close()
 
-    # Get message header as raw array of chars
-    rawhdr = RecvData(con, 24)
-
-    # Split array into usefull information id1 to id4 are constants
-    (id1, id2, id3, id4, msgsize, msgtype) = unpack('<llllLL', rawhdr)
-
-    # Get data part of message, which is of variable size
-    rawdata = RecvData(con, msgsize - 24)
-
-    # Perform action dependend on the message type
-    if msgtype == 1:
-        # Start message, extract eeg properties and display them
-        (channelCount, samplingInterval, resolutions, channelNames) = GetProperties(rawdata)
-        # reset block counter
+    def trigger(self):
+        '''
+        Reads all available data from EMG system and runs trigger detection on
+        last second of data.
+        '''
+        # block counter to check overflows of tcpip buffer
         lastBlock = -1
-        data1 = deque(maxlen = 100)
-        print "Start"
-        print "Number of channels: " + str(channelCount)
-        print "Sampling interval: " + str(samplingInterval)
-        print "Resolutions: " + str(resolutions)
-        print "Channel Names: " + str(channelNames)
+        RecvData = self.receivefunc
+        # Get message header as raw array of chars
+        rawhdr = RecvData(self.con, 24)
+        # Split array into usefull information id1 to id4 are constants
+        (id1, id2, id3, id4, msgsize, msgtype) = unpack('<llllLL', rawhdr)
+        # Get data part of message, which is of variable size
+        rawdata = RecvData(self.con, msgsize - 24)
 
+        # Perform action dependend on the message type
+        if msgtype == 1:
+            # Start message, extract eeg properties and display them
+            (self.channelCount, self.samplingInterval, self.resolutions, self.channelNames) = GetProperties(rawdata)
+            # reset block counter
+            lastBlock = -1
 
-    elif msgtype == 4:
-        # Data message, extract data and markers
-        (block, points, markerCount, data, markers) = GetData(rawdata, channelCount)
+        elif msgtype == 4:
+            # Data message, extract data and markers
+            (block, points, markerCount, data, markers) = GetData(rawdata, self.channelCount)
+            # Check for overflow
+            if lastBlock != -1 and block > lastBlock + 1:
+                print "*** Overflow with " + str(block - lastBlock) + " datablocks ***"
+            lastBlock = block
+            # Put data at the end of actual buffer
+            self.datadeck.extend(data)
+            return detect_spike(self.datadeck)
 
-        # Check for overflow
-        if lastBlock != -1 and block > lastBlock + 1:
-            print "*** Overflow with " + str(block - lastBlock) + " datablocks ***"
-        lastBlock = block
-
-        # Print markers, if there are some in actual block
-        if markerCount > 0:
-            for m in range(markerCount):
-                print "Marker " + markers[m].description + " of type " + markers[m].type
-
-        # Put data at the end of actual buffer
-        data1s.extend(data)
-        data1.extend(data)
-        data2 = list(data1)
-        meandata2 = np.mean(data2[:-1])
-        stddata2 = np.std(data2[:-1])
-        if data2[-1] > meandata2 + 3*stddata2:
-            print time.time()
-        # If more than 1s of data is collected, calculate average power, print it and reset data buffer
-        if len(data1s) > channelCount * 1000000 / samplingInterval:
-            index = int(len(data1s) - channelCount * 1000000 / samplingInterval)
-            data1s = data1s[index:]
-
-            avg = 0
-            # Do not forget to respect the resolution !!!
-            for i in range(len(data1s)):
-                avg = avg + data1s[i]*data1s[i]*resolutions[i % channelCount]*resolutions[i % channelCount]
-
-            avg = avg / len(data1s)
-            print "Average power: " + str(avg)
-
-            data1s = []
-
-
-    elif msgtype == 3:
-        # Stop message, terminate program
-        print "Stop"
-        finish = True
-
-# Close tcpip connection
-con.close()
+        elif msgtype == 3:
+            raise RuntimeError('EMG recording stopped')
+        return 0

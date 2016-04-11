@@ -104,7 +104,11 @@ class PsychoTracker(Tracker):
 
 
 class FloatData:
+    def getCurentGaze(self):
+        return (time.time(), random.randint(0, 100), random.randint(0, 100), random.randint(0, 100))
+
     def getAverageGaze(self):
         return (random.randint(0, 100), random.randint(0, 100), random.randint(0, 100))
+        
     def getEye(self):
         return 0 # left eye
