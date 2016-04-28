@@ -71,7 +71,7 @@ class TrigChecker(object):
         try:
             self.socket = context.socket(zmq.PUB)
             self.socket.bind("tcp://*:%i"%self.port)
-            with RDA.EEGTrigger(fake=self.IPI) as et:
+            with RDA.EEGTrigger(fake=False) as et:
                 while True:
                     datum = et.trigger()
                     if datum:

@@ -175,14 +175,15 @@ def GetData(rawdata, channelCount):
     return (block, points, markerCount, data, markers)
 
 
-def detect_spike(data, stds_away=5):
+def detect_spike(data, stds_away=2.5):
     '''
     Primitive spike detection by variable threshold crossing.
     '''
-    data = list(data)
+    data = np.diff(np.array(data))
     mean = np.mean(data[:-1])
     std = np.std(data[:-1])
-    if data[-1] > (mean + stds_away*std):
+    print data.max()
+    if data.max()>250:
         return True
     return False
 
@@ -193,7 +194,7 @@ class EEGTrigger(object):
     algorithm. Should be used with a context manager - otherwise socket needs to
     be closed manually.
     '''
-    def __init__(self, ip='172.18.101.205', port=51244, fake=True):
+    def __init__(self, ip='172.18.101.66', port=51244, fake=True):
         self.ip = ip
         self.port = port
         self.fake = fake
