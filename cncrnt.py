@@ -38,6 +38,7 @@ class ETBroadcast(object):
         try:
             self.socket = context.socket(zmq.PUB)
             self.socket.bind("tcp://*:%i"%self.port)
+
             print 'Configured 0MQ socket on port', self.port
             # ET samples at 1000Hz, so collect 1s of samples and send them over
             data = []
@@ -48,8 +49,8 @@ class ETBroadcast(object):
                     msg = 'ET ' + cPickle.dumps(data, protocol=0)
                     self.socket.send_string(msg)
                     data = []
-                #if block:
-                #    core.wait(1./self.Hz)
+                if block:
+                    core.wait(1./self.Hz)
         finally:
             self.socket.close()
 
@@ -75,28 +76,28 @@ class TrigChecker(object):
                 while True:
                     datum = et.trigger()
                     if datum:
-                        self.socket.send_string(u'Trigger %f'%time.time())
+                        self.socket.send_multipart(('Trigger', '%f'%time.time()))
                         print 'Trigger!'
-                    core.wait(1./50, 1./(50.+2.))
+                    core.wait(.1, .01)
         finally:
             self.socket.close()
 
 if __name__ == '__main__':
     try:
-        et = ETBroadcast(5558, 250)
-        p = Process(target=et.run)
-        p.start()
-        trig = TrigChecker(5559, 500, 15.)
+        #et = ETBroadcast(5000, 25)
+        #p = Process(target=et.run)
+        #p.start()
+        trig = TrigChecker(5559, np.nan, 5.)
         p2 = Process(target=trig.run)
         p2.start()
         p2.join()
-        p.join()
+        #p.join()
     except Exception:
         import traceback
         print traceback.format_exc()
         print ''
-        p.terminate()
+        #p.terminate()
         p2.terminate()
     finally:
-        p.terminate()
+        #p.terminate()
         p2.terminate()
