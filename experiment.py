@@ -23,9 +23,16 @@ import randomization
 # Set inter pulse interval
 IPI = 15.
 context = zmq.Context()
+
+
+meta = context.socket(zmq.PUB)
+meta.bind("tcp://*:5560")
+
 et = context.socket(zmq.SUB)
 et.connect("tcp://localhost:5559")
 et.setsockopt_string(zmq.SUBSCRIBE, u'Trigger')
+
+
 
 
 # Open a window for experiment
@@ -42,8 +49,8 @@ patch = visual.Circle(win = mywin, lineColor=None, fillColor=1, fillColorSpace='
 fixation = visual.GratingStim(win = mywin, color=[1,0,0], colorSpace='rgb', tex=None, mask='circle',size=0.2)
 
 def get_trigger():
-    trigger = et.recv_string()
-    return float(trigger.split(' ')[1])
+    trigger, msg = et.recv_multipart()
+    return float(msg)
 
 # Set up timing
 fix_times, relax_times, pulse_times, diffs = randomization.get_sequence(15, IPI=IPI, pulse_guard=3.5, jitter=1/4.)
@@ -57,12 +64,15 @@ sync_err = 0
 
 for n, ((fixstart, fixend), (relaxstart, relaxend), pt) in enumerate(zip(fix_times, relax_times, pulse_times)):
     # pt is expected next trigger time.
+    meta.send_multipart(('Exp_Info', 'Trial ' + str(n)))
+
     if n == 0:
-        t = trials.FixateRelax(mywin, tracker, fixation, fixend-fixstart, relaxend)
+        t = trials.FixateRelax(mywin, tracker, fixation, fixend-fixstart, relaxend, meta)
     else:
         print '--> Fixtime: %3.2f'%(fixend-fixstart)
         print '--> Relaxtime: %3.2f'%(relaxend-relaxstart)
-        t = trials.FixateRelax(mywin, tracker, fixation, fixend-fixstart, relaxend-relaxstart-sync_err)
+
+        t = trials.FixateRelax(mywin, tracker, fixation, fixend-fixstart, relaxend-relaxstart-sync_err, meta)
 
     t.run()
 
@@ -71,8 +81,8 @@ for n, ((fixstart, fixend), (relaxstart, relaxend), pt) in enumerate(zip(fix_tim
     sync_err = (trigger-start)-pt # + if trigger was later than expected, - if it was too early
     print 'Trigger: %3.2f'%(trigger-start), 'Expected: %3.2f'%pt
     print 'Syncerr:', sync_err
-    if abs(sync_err) > 0.25:
-        raise RuntimeError('Sync err is larger than 250ms: Improve trigger detection')
+    if abs(sync_err) > 1:
+        raise RuntimeError('Sync err is larger than 1s: Improve trigger detection')
 
 
 mywin.close()
