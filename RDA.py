@@ -175,15 +175,18 @@ def GetData(rawdata, channelCount):
     return (block, points, markerCount, data, markers)
 
 
+
 def detect_spike(data, stds_away=2.5):
     '''
     Primitive spike detection by variable threshold crossing.
     '''
     data = np.diff(np.array(data))
-    mean = np.mean(data[:-1])
-    std = np.std(data[:-1])
-    print data.max()
-    if data.max()>250:
+    #mean = np.mean(data[:-1])
+
+    d =  np.max(data)
+
+    if d >2500:
+        print "detect", d
         return True
     return False
 
@@ -194,11 +197,13 @@ class EEGTrigger(object):
     algorithm. Should be used with a context manager - otherwise socket needs to
     be closed manually.
     '''
-    def __init__(self, ip='172.18.101.66', port=51244, fake=True):
+    def __init__(self, ip='172.18.101.66', port=51244, fake=False):
         self.ip = ip
         self.port = port
         self.fake = fake
-        self.datadeck = deque(maxlen = 100)
+        self.datadeck = deque(maxlen = 200)
+        self.framecnt = 0
+        self.t_start = None
 
     def __enter__(self):
         if not self.fake:
@@ -221,6 +226,8 @@ class EEGTrigger(object):
         Reads all available data from EMG system and runs trigger detection on
         last second of data.
         '''
+        if self.t_start is None:
+            self.t_start = time.time()
         # block counter to check overflows of tcpip buffer
         lastBlock = -1
         RecvData = self.receivefunc
@@ -230,7 +237,9 @@ class EEGTrigger(object):
         (id1, id2, id3, id4, msgsize, msgtype) = unpack('<llllLL', rawhdr)
         # Get data part of message, which is of variable size
         rawdata = RecvData(self.con, msgsize - 24)
-
+        self.framecnt+=1
+        if np.mod(self.framecnt, 100)==0:
+            print "FPS:", self.framecnt/(time.time()-self.t_start)
         # Perform action dependend on the message type
         if msgtype == 1:
             # Start message, extract eeg properties and display them
@@ -246,8 +255,8 @@ class EEGTrigger(object):
                 print "*** Overflow with " + str(block - lastBlock) + " datablocks ***"
             lastBlock = block
             # Put data at the end of actual buffer
-            self.datadeck.extend(data)
-            return detect_spike(self.datadeck)
+            #self.datadeck.extend(data)
+            return detect_spike(data)
 
         elif msgtype == 3:
             raise RuntimeError('EMG recording stopped')

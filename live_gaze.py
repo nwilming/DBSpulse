@@ -16,7 +16,7 @@ sns.set_style('ticks')
 #  Socket to talk to server
 
 # Keep values in a deck to always have a fixed number of samples to display.
-maxlen = 500
+maxlen = 1000
 dx, dy, dp = deque(maxlen=maxlen), deque(maxlen=maxlen), deque(maxlen=maxlen)
 dt = deque(maxlen=maxlen)
 tstart = time.time()
@@ -27,7 +27,8 @@ class GetET(object):
         self.et = context.socket(zmq.SUB)
         self.trig = context.socket(zmq.SUB)
         self.et.set_hwm(1)
-        self.et.connect("tcp://127.0.0.1:%i"%5000)
+        self.et.connect("tcp://172.18.100.19:%i"%5000)
+
         self.trig.connect("tcp://localhost:5559")
         self.et.setsockopt_string(zmq.SUBSCRIBE, u'gaze_positions')
         self.trig.setsockopt_string(zmq.SUBSCRIBE, u'Trigger')

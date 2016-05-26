@@ -25,6 +25,7 @@ class TrigChecker(object):
         self.Hz = Hz
         self.start = time.time()
         self.IPI = IPI
+        self.last_trig = 0
 
     def run(self, block=True):
         try:
@@ -33,10 +34,10 @@ class TrigChecker(object):
             with RDA.EEGTrigger(fake=False) as et:
                 while True:
                     datum = et.trigger()
-                    if datum:
+                    if datum and ((time.time()-self.last_trig)>1.):
                         self.socket.send_multipart(('Trigger', '%f'%time.time()))
-                        print 'Trigger!'
-                    core.wait(.1, .01)
+                        #print 'Trigger!'
+                        self.last_trig = time.time()
         finally:
             self.socket.close()
 
