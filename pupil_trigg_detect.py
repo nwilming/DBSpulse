@@ -46,8 +46,8 @@ class DBSTriggers(Plugin):
         context = zmq.Context()
         self.et = context.socket(zmq.SUB)
         self.meta = context.socket(zmq.SUB)
-        self.et.connect("tcp://localhost:5559")
-        self.meta.connect("tcp://localhost:5560")
+        self.et.connect("tcp://172.18.101.198:5559")
+        self.meta.connect("tcp://172.18.101.198:5560")
         self.et.setsockopt_string(zmq.SUBSCRIBE, u'Trigger')
         self.meta.setsockopt_string(zmq.SUBSCRIBE, u'Exp_Info')
 
@@ -76,19 +76,21 @@ class DBSTriggers(Plugin):
         try:
             topic, msg = self.et.recv_multipart(zmq.DONTWAIT)
         except zmq.error.Again:
-            return
+            pass
         print topic, msg
         if topic.startswith('Trigger'):
             events['DBSTrigger'] = [self.g_pool.capture.get_timestamp()]
         try:
             topic, msg = self.meta.recv_multipart(zmq.DONTWAIT)
         except zmq.error.Again:
-            return
+            pass
         print topic, msg
         if topic.startswith('Exp_Info'):
             msg = str(msg)
             print 'saving ', msg
             events['Exp_info'] = [(self.g_pool.capture.get_timestamp(), msg)]
+        return
+
 
     def cleanup(self):
         """ called when the plugin gets terminated.
