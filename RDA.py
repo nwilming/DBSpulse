@@ -16,6 +16,8 @@ from collections import deque
 
 from sys import getsizeof as sizeof
 
+import configure
+
 class Marker:
     '''
     Marker class - helper class for comm. with EEG.
