@@ -21,7 +21,7 @@ import zmq
 import randomization
 
 # Set inter pulse interval
-IPI = 10.
+IPI = 10.5
 context = zmq.Context()
 
 
@@ -38,7 +38,7 @@ et.setsockopt_string(zmq.SUBSCRIBE, u'Trigger')
 
 
 # Open a window for experiment
-mywin = visual.Window((400,400),
+mywin = visual.Window((1500, 1000),
                     monitor="Bharath",
                     fullscr = False,
                     allowGUI = False,
@@ -48,14 +48,14 @@ mywin = visual.Window((400,400),
 
 # Some stimuli
 patch = visual.Circle(win = mywin, lineColor=None, fillColor=1, fillColorSpace='rgb', pos=(0, 0), radius=1.5, edges=64, interpolate=True)
-fixation = visual.GratingStim(win = mywin, color=[1,0,0], colorSpace='rgb', tex=None, mask='circle',size=0.2)
+fixation = visual.GratingStim(win = mywin, color=[1,0,0], colorSpace='rgb', tex=None, mask='circle',size=1.2)
 
 def get_trigger():
     trigger, msg = et.recv_multipart()
     return float(msg)
 
 # Set up timing
-fix_times, relax_times, pulse_times, diffs = randomization.get_sequence(15, IPI=IPI, pulse_guard=1.5, jitter=1/4.)
+fix_times, relax_times, pulse_times, diffs = randomization.get_sequence(45, IPI=IPI, pulse_guard=2.5, jitter=1/4.)
 fix_times = fix_times[1:]
 relax_times = relax_times[:-1]
 pulse_times = pulse_times[1:]

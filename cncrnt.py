@@ -34,7 +34,7 @@ class TrigChecker(object):
             with RDA.EEGTrigger(fake=False) as et:
                 while True:
                     datum = et.trigger()
-                    if datum and ((time.time()-self.last_trig)>1.):
+                    if datum and ((time.time()-self.last_trig)>2.):
                         self.socket.send_multipart(('Trigger', '%f'%time.time()))
                         #print 'Trigger!'
                         self.last_trig = time.time()
