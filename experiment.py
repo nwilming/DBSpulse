@@ -21,13 +21,15 @@ import zmq
 import randomization
 
 # Set inter pulse interval
-IPI = 15.
+IPI = 10.
 context = zmq.Context()
 
 
+# This one provides experiment meta data.
 meta = context.socket(zmq.PUB)
-meta.bind("tcp://*:5560")
+meta.bind("tcp://172.18.101.198:5560")
 
+# This connects to the EEG amplifier / streaming
 et = context.socket(zmq.SUB)
 et.connect("tcp://localhost:5559")
 et.setsockopt_string(zmq.SUBSCRIBE, u'Trigger')
@@ -37,7 +39,7 @@ et.setsockopt_string(zmq.SUBSCRIBE, u'Trigger')
 
 # Open a window for experiment
 mywin = visual.Window((400,400),
-                    monitor = 'mac_default',
+                    monitor="Bharath",
                     fullscr = False,
                     allowGUI = False,
                     winType = 'pyglet',
@@ -53,26 +55,37 @@ def get_trigger():
     return float(msg)
 
 # Set up timing
-fix_times, relax_times, pulse_times, diffs = randomization.get_sequence(15, IPI=IPI, pulse_guard=3.5, jitter=1/4.)
+fix_times, relax_times, pulse_times, diffs = randomization.get_sequence(15, IPI=IPI, pulse_guard=1.5, jitter=1/4.)
 fix_times = fix_times[1:]
 relax_times = relax_times[:-1]
 pulse_times = pulse_times[1:]
 
+fix_times = np.array(fix_times)
+relax_times = np.array(relax_times)
+pulse_times = np.array(pulse_times)
+
+#first_start = get_trigger()
 start = get_trigger()
-start = get_trigger()
+#print 'IPI:', start-first_start
 sync_err = 0
 
-for n, ((fixstart, fixend), (relaxstart, relaxend), pt) in enumerate(zip(fix_times, relax_times, pulse_times)):
-    # pt is expected next trigger time.
-    meta.send_multipart(('Exp_Info', 'Trial ' + str(n)))
+for trial in range(len(fix_times)-1):
+    fix_times += sync_err
+    pulse_times += sync_err
+    relax_times += sync_err
+    (fixstart, fixend), (relaxstart, relaxend), pt = fix_times[trial], relax_times[trial], pulse_times[trial]
+    relaxstart -= sync_err
 
-    if n == 0:
+    # pt is expected next trigger time.
+    meta.send_multipart(('Exp_Info', 'Trial ' + str(trial)))
+
+    if trial == 0:
         t = trials.FixateRelax(mywin, tracker, fixation, fixend-fixstart, relaxend, meta)
     else:
         print '--> Fixtime: %3.2f'%(fixend-fixstart)
         print '--> Relaxtime: %3.2f'%(relaxend-relaxstart)
 
-        t = trials.FixateRelax(mywin, tracker, fixation, fixend-fixstart, relaxend-relaxstart-sync_err, meta)
+        t = trials.FixateRelax(mywin, tracker, fixation, fixend-fixstart, relaxend-relaxstart, meta)
 
     t.run()
 
@@ -81,7 +94,7 @@ for n, ((fixstart, fixend), (relaxstart, relaxend), pt) in enumerate(zip(fix_tim
     sync_err = (trigger-start)-pt # + if trigger was later than expected, - if it was too early
     print 'Trigger: %3.2f'%(trigger-start), 'Expected: %3.2f'%pt
     print 'Syncerr:', sync_err
-    if abs(sync_err) > 1:
+    if abs(sync_err) > 100:
         raise RuntimeError('Sync err is larger than 1s: Improve trigger detection')
 
 
