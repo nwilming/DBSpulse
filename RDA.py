@@ -182,12 +182,10 @@ def detect_spike(data, stds_away=2.5):
     '''
     Primitive spike detection by variable threshold crossing.
     '''
-    data = np.diff(np.array(data))
+    data = np.array(data)
     #mean = np.mean(data[:-1])
-
     d =  np.max(data)
-
-    if d >2500:
+    if d >20000:
         print "detect", d
         return True
     return False
@@ -209,6 +207,7 @@ class EEGTrigger(object):
 
     def __enter__(self):
         if not self.fake:
+
             self.con = socket(AF_INET, SOCK_STREAM)
             self.con.connect((self.ip, self.port))
             self.receivefunc = RecvData
@@ -240,8 +239,11 @@ class EEGTrigger(object):
         # Get data part of message, which is of variable size
         rawdata = RecvData(self.con, msgsize - 24)
         self.framecnt+=1
-        if np.mod(self.framecnt, 100)==0:
-            print "FPS:", self.framecnt/(time.time()-self.t_start)
+        if np.mod(self.framecnt, 100000)==0:
+            try:
+                print "FPS:", self.framecnt/(time.time()-self.t_start)
+            except ZeroDivisionError:
+                pass
         # Perform action dependend on the message type
         if msgtype == 1:
             # Start message, extract eeg properties and display them
