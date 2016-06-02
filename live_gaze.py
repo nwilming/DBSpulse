@@ -1,5 +1,6 @@
 import matplotlib
-matplotlib.use(u'Qt4Agg')
+#matplotlib.use(u'Qt4Agg')
+matplotlib.use('TkAgg')
 import numpy as np
 import time
 from collections import deque
@@ -27,9 +28,9 @@ class GetET(object):
         self.et = context.socket(zmq.SUB)
         self.trig = context.socket(zmq.SUB)
         self.et.set_hwm(1)
-        self.et.connect("tcp://172.18.100.19:%i"%5000)
-
-        self.trig.connect("tcp://localhost:5559")
+        #self.et.connect("tcp://172.18.100.19:%i"%5000)
+        self.et.connect("tcp://172.18.102.46:%i"%5000)
+        self.trig.connect("tcp://172.18.101.198:5559")
         self.et.setsockopt_string(zmq.SUBSCRIBE, u'gaze_positions')
         self.trig.setsockopt_string(zmq.SUBSCRIBE, u'Trigger')
 
@@ -105,5 +106,5 @@ class foo(object):
             print "FPS:", self.frame_cnt / (t)
         return list(trigger_list)+[linex, liney]
 
-ani = animation.FuncAnimation(fig, foo(), interval=1, blit=True)
+ani = animation.FuncAnimation(fig, foo(), interval=1, blit=False)
 plt.show()

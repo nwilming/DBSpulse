@@ -44,4 +44,3 @@ Order of operations
  3. Set up Eye tracker (calibration)
  4. Start recording
  5. Start experiment.
-   

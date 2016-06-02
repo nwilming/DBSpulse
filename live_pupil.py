@@ -27,8 +27,10 @@ class GetET(object):
         self.et = context.socket(zmq.SUB)
         self.trig = context.socket(zmq.SUB)
         self.et.set_hwm(1)
-        self.et.connect("tcp://172.18.100.19:%i"%5000)
-        self.trig.connect("tcp://localhost:5559")
+        #self.et.connect("tcp://172.18.100.19:%i"%5000)
+        #self.trig.connect("tcp://localhost:5559")
+        self.et.connect("tcp://172.18.102.46:%i"%5000)
+        self.trig.connect("tcp://172.18.101.198:5559")
         self.et.setsockopt_string(zmq.SUBSCRIBE, u'gaze_positions')
         self.trig.setsockopt_string(zmq.SUBSCRIBE, u'Trigger')
 
@@ -76,7 +78,7 @@ et.run()
 fig, ax = plt.subplots()
 
 linep, = ax.plot([0, 1], [0, 0], 'b-')
-ax.set_ylim(2, 8)
+ax.set_ylim(2, 120)
 
 trigger_list = deque(maxlen=5)
 class foo(object):
@@ -103,5 +105,5 @@ class foo(object):
             print "FPS:", self.frame_cnt / (t)
         return list(trigger_list)+[linep]
 
-ani = animation.FuncAnimation(fig, foo(), interval=1, blit=True)
+ani = animation.FuncAnimation(fig, foo(), interval=1, blit=False)
 plt.show()

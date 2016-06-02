@@ -75,21 +75,22 @@ class DBSTriggers(Plugin):
     def update(self,frame,events):
         try:
             topic, msg = self.et.recv_multipart(zmq.DONTWAIT)
+            print topic, msg
+            if topic.startswith('Trigger'):
+                events['DBSTrigger'] = [self.g_pool.capture.get_timestamp()]
         except zmq.error.Again:
             pass
-        print topic, msg
-        if topic.startswith('Trigger'):
-            events['DBSTrigger'] = [self.g_pool.capture.get_timestamp()]
+
         try:
             topic, msg = self.meta.recv_multipart(zmq.DONTWAIT)
+            print topic, msg
+            if topic.startswith('Exp_Info'):
+                msg = str(msg)
+                print 'saving ', msg
+                events['Exp_info'] = [(self.g_pool.capture.get_timestamp(), msg)]
         except zmq.error.Again:
             pass
-        print topic, msg
-        if topic.startswith('Exp_Info'):
-            msg = str(msg)
-            print 'saving ', msg
-            events['Exp_info'] = [(self.g_pool.capture.get_timestamp(), msg)]
-        return
+
 
 
     def cleanup(self):
