@@ -9,17 +9,33 @@ def get_dataset(dir):
     a = cPickle.load(open(path.join(dir,'pupil_data')))
     df = pd.concat([to_df(k) for k in a['gaze_positions']])
     df = regular(df)
+    if not 'DBSTrigger' in a.keys():
+        return df
     triggers = pd.to_datetime(a['DBSTrigger'], unit='s')
     triggers = pd.DatetimeIndex([df.index.asof(x) for x in triggers])
     return df, triggers
 
 
 def to_df(datum):
-    return pd.DataFrame({'diameter':datum['base'][0]['diameter'],
-            'x':datum['norm_pos'][0],
-            'y':datum['norm_pos'][1],
-            'confidence':datum['confidence']},
-            index=[datum['timestamp']])
+    d = {
+         'xc':datum['norm_pos'][0],
+         'yc':datum['norm_pos'][1],
+         'confidence':datum['confidence']
+         }
+    for eye in datum['base']:
+        id = str(eye['id'])
+        d.update({
+             'x'+id:eye['norm_pos'][0],
+             'y'+id:eye['norm_pos'][1],
+             'confidence'+id:eye['confidence'],
+             'diameter'+id:eye['diameter']
+             })
+    for key in datum.keys():
+        if key.startswith('realtime gaze'):
+            data = datum[key]
+            d.update({key+'x':data[0], key+'y':data[0]})
+
+    return pd.DataFrame(d, index=[datum['timestamp']])
 
 
 def interp(x, y, target):
