@@ -12,7 +12,7 @@ import matplotlib.animation as animation
 import cPickle
 import seaborn as sns
 import json
-
+import configure
 sns.set_style('ticks')
 #  Socket to talk to server
 
@@ -29,8 +29,8 @@ class GetET(object):
         self.trig = context.socket(zmq.SUB)
         self.et.set_hwm(1)
         #self.et.connect("tcp://172.18.100.19:%i"%5000)
-        self.et.connect("tcp://172.18.102.46:%i"%5000)
-        self.trig.connect("tcp://172.18.101.198:5559")
+        self.et.connect("tcp://%s"%(configure.eyetracking_ip))
+        self.trig.connect("tcp://%s:5559"%(configure.concurrent_ip))
         self.et.setsockopt_string(zmq.SUBSCRIBE, u'gaze_positions')
         self.trig.setsockopt_string(zmq.SUBSCRIBE, u'Trigger')
 

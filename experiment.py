@@ -27,19 +27,19 @@ context = zmq.Context()
 
 # This one provides experiment meta data.
 meta = context.socket(zmq.PUB)
-meta.bind("tcp://172.18.101.198:5560")
+meta.bind("tcp://172.18.100.65:5560")
 
 # This connects to the EEG amplifier / streaming
 et = context.socket(zmq.SUB)
-et.connect("tcp://localhost:5559")
+et.connect("tcp://172.18.102.176:5559")
 et.setsockopt_string(zmq.SUBSCRIBE, u'Trigger')
 
 
 
 
 # Open a window for experiment
-mywin = visual.Window((1500, 1000),
-                    monitor="Bharath",
+mywin = visual.Window((500, 500),
+                    monitor="DBS",
                     fullscr = False,
                     allowGUI = False,
                     winType = 'pyglet',
@@ -51,6 +51,7 @@ patch = visual.Circle(win = mywin, lineColor=None, fillColor=1, fillColorSpace='
 fixation = visual.GratingStim(win = mywin, color=[1,0,0], colorSpace='rgb', tex=None, mask='circle',size=1.2)
 
 def get_trigger():
+    print 'Waiting for trigger!'
     trigger, msg = et.recv_multipart()
     return float(msg)
 

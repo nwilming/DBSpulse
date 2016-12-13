@@ -197,7 +197,7 @@ class EEGTrigger(object):
     algorithm. Should be used with a context manager - otherwise socket needs to
     be closed manually.
     '''
-    def __init__(self, ip='172.18.101.66', port=51244, fake=False):
+    def __init__(self, ip=configure.eeg_source_ip, port=51244, fake=False):
         self.ip = ip
         self.port = port
         self.fake = fake
