@@ -3,6 +3,10 @@ import pandas as pd
 from scipy.interpolate import interp1d
 from os import path
 import cPickle
+import pylab as plt
+import matplotlib
+import seaborn as sns
+sns.set_style('ticks')
 
 
 def get_dataset(dir):
@@ -80,24 +84,75 @@ def time_lock_series(data, time_points, span):
     return oo
 
 
+def baseline(df, time=(-1, 0)):
+    return df-df.loc[[slice(-0.5, 0), None]].mean()
+
+
+def timelocked_analysis(df, trigs, field='diameter', bad_trigs=None):
+    if bad_trigs is None:
+        bad_trigs = array([False]*len(trigs))
+    df = df.query('confidence>0.8')
+    df.loc[:, field] = (df[field]-df[field].mean())/df[field].std()
+    plt.figure(figsize=(10, 5))
+    gs = matplotlib.gridspec.GridSpec(6, 1)
+    plt.subplot(gs[1:, :])
+
+    oo = time_locked(df, trigs[~bad_trigs], [-2.5, 5])
+    oo = oo.groupby(level='Trial').apply(baseline)
+    sns.tsplot(oo.reset_index(), time='Time', unit='Trial', value=field, estimator=plt.nanmean)
+    plt.axvline(0, color='k')
+    plt.ylim([-1, 1])
+    sns.despine()
+    plt.subplot(gs[0, :])
+    plt.plot(df[field])
+    plt.plot([df.index[0], df.index[0] + pd.Timedelta(10, unit='s')], [-2, -2], 'r')
+    for i, l in enumerate(trigs):
+        if bad_trigs[i]:
+            plt.axvline(l, color='k', alpha=0.5)
+        else:
+            plt.axvline(l, color='r', alpha=0.5)
+    plt.xticks([])
+    plt.yticks([])
+    sns.despine()
+
+
 def foo():
     for i, ds in enumerate(['%03i'%i for i in arange(4, 10)]):
         df, trigs = analysis.get_dataset('/Users/nwilming/recordings/2016_06_01/%s'%ds)
         df.diameter = (df.diameter-df.diameter.mean())/df.diameter.std()
-        figure(figsize=(10, 5))
+        plt.figure(figsize=(10, 5))
         gs = matplotlib.gridspec.GridSpec(6, 1)
-        subplot(gs[1:, :])
+        plt.subplot(gs[1:, :])
         oo = analysis.time_locked(df, trigs, [-2.5, 5])
         sns.tsplot(oo.reset_index(), time='Time', unit='Trial', value='diameter', estimator=nanmean)
-        axvline(0, color='k')
-        ylim([-1, 1])
+        plt.axvline(0, color='k')
+        plt.ylim([-1, 1])
         sns.despine()
-        subplot(gs[0, :])
-        plot(df.diameter)
-        plot([df.index[0], df.index[0] + pd.Timedelta(7.5, unit='s')], [-2, -2], 'r')
+        plt.subplot(gs[0, :])
+        plt.plot(df[field])
+        plt.plot([df.index[0], df.index[0] + pd.Timedelta(7.5, unit='s')], [-2, -2], 'r')
         for l in trigs:
-            axvline(l, color='k', alpha=0.5)
+            plt/axvline(l, color='k', alpha=0.5)
         xticks([])
         yticks([])
         sns.despine()
         savefig('/Users/nwilming/u/DBSpulse/plots/pilot_1_rec_%s.pdf'%ds, bbox_inches='tight')
+
+
+def foo2():
+    for d in ds[3:]:
+        t = d.split('/')[-1]
+        try:
+            df, trigs = analysis.get_dataset(d)
+            bad_trigs = array([False]*len(trigs))
+            if t == '004':
+                bad_trigs[:10] = True
+            elif t == '006':
+                bad_trigs[4:6] = True
+            else:
+                bad_trigs[0] = True
+            analysis.timelocked_analysis(df, trigs, field='diameter0', bad_trigs=bad_trigs)
+            title('Dataset: %s'%t)
+            savefig('/Users/nwilming/Dropbox/Pupillometry/2016_11_25/%s.pdf'%t)
+        except ValueError:
+            print 'No triggers for ', d
