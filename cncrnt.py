@@ -29,6 +29,7 @@ class TrigChecker(object):
 
     def run(self, block=True):
         try:
+            print 'Setting up trigger detect'
             self.socket = context.socket(zmq.PUB)
             self.socket.bind("tcp://*:%i"%self.port)
             with RDA.EEGTrigger(fake=False) as et:

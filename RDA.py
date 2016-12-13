@@ -185,7 +185,7 @@ def detect_spike(data, stds_away=2.5):
     data = np.array(data)
     #mean = np.mean(data[:-1])
     d =  np.max(data)
-    if d >20000:
+    if d >4500:
         print "detect", d
         return True
     return False

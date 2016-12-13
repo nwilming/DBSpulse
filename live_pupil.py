@@ -17,8 +17,13 @@ sns.set_style('ticks')
 
 # Keep values in a deck to always have a fixed number of samples to display.
 maxlen = 1000
-dx, dy, dp = deque(maxlen=maxlen), deque(maxlen=maxlen), deque(maxlen=maxlen)
+dx, dy, dp1, dp2 = deque(maxlen=maxlen), deque(maxlen=maxlen), deque(maxlen=maxlen), deque(maxlen=maxlen)
+dp = [dp1, dp2]
 dt = deque(maxlen=maxlen)
+dtp1 = deque(maxlen=maxlen)
+dtp2 = deque(maxlen=maxlen)
+dtp = [dtp1, dtp2]
+
 tstart = time.time()
 
 class GetET(object):
@@ -52,8 +57,11 @@ class GetET(object):
                         if 'diameter_3d' in msg[-1]['base'][0].keys():
                             pupil = msg[-1]['base'][0]['diameter_3d']
                         else:
-                            pupil = msg[-1]['base'][0]['diameter']
-                        dp.append(pupil)
+                            for m in msg:
+                                pupil = m['base'][0]['diameter']
+                                id = m['base'][0]['id']
+                                dp[id].append(pupil)
+                                dtp[id].append(time.time()-self.tstart)
                         dt.append(time.time()-self.tstart)
 
                     except ValueError:
@@ -77,7 +85,8 @@ et.run()
 
 fig, ax = plt.subplots()
 
-linep, = ax.plot([0, 1], [0, 0], 'b-')
+linep, = ax.plot([0, 1], [0, 0], 'g-')
+linep2, = ax.plot([0, 1], [0, 0], 'r-')
 ax.set_ylim(2, 120)
 
 trigger_list = deque(maxlen=5)
@@ -97,7 +106,9 @@ class foo(object):
             vl = ax.axvline(trigger)
             trigger_list.append(vl)
         dtt = list(dt)
-        linep.set_data(dtt, list(dp))
+
+        linep.set_data(list(dtp[0]), list(dp[0]))
+        linep2.set_data(list(dtp[1]), list(dp[1]))
         t = time.time()-self.tstart
         ax.set_xlim([t-20, t+5])
         self.frame_cnt += 1
